@@ -13,6 +13,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle2 } from "lucide-react";
+import { externalSupabase } from "@/lib/externalSupabase";
+import { useToast } from "@/hooks/use-toast";
 
 interface FormData {
   name: string;
@@ -29,6 +31,7 @@ interface FormErrors {
 }
 
 export const FeedbackForm = () => {
+  const { toast } = useToast();
   const [formData, setFormData] = useState<FormData>({
     name: "",
     email: "",
@@ -39,6 +42,7 @@ export const FeedbackForm = () => {
 
   const [errors, setErrors] = useState<FormErrors>({});
   const [showSuccess, setShowSuccess] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
@@ -61,13 +65,54 @@ export const FeedbackForm = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setShowSuccess(false);
 
-    if (validateForm()) {
+    if (!validateForm()) {
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const { error } = await externalSupabase.from('feedbacks').insert({
+        name: formData.name,
+        email: formData.email,
+        rating: parseInt(formData.rating),
+        category: formData.category || null,
+        message: formData.comment,
+      });
+
+      if (error) {
+        throw error;
+      }
+
       setShowSuccess(true);
+      toast({
+        title: "Success!",
+        description: "Your feedback has been submitted successfully.",
+      });
+      
+      // Reset form
+      setFormData({
+        name: "",
+        email: "",
+        rating: "",
+        category: "",
+        comment: "",
+      });
+      
       setTimeout(() => setShowSuccess(false), 5000);
+    } catch (error) {
+      console.error('Error submitting feedback:', error);
+      toast({
+        title: "Error",
+        description: "Failed to submit feedback. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -183,13 +228,13 @@ export const FeedbackForm = () => {
               <Alert className="border-success bg-success/10">
                 <CheckCircle2 className="h-4 w-4 text-success" />
                 <AlertDescription className="text-success-foreground">
-                  Your feedback has been recorded. (Backend not connected yet.)
+                  Your feedback has been submitted successfully!
                 </AlertDescription>
               </Alert>
             )}
 
-            <Button type="submit" className="w-full" size="lg">
-              Submit Feedback
+            <Button type="submit" className="w-full" size="lg" disabled={isSubmitting}>
+              {isSubmitting ? "Submitting..." : "Submit Feedback"}
             </Button>
           </form>
         </CardContent>
